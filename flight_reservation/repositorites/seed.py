@@ -16,7 +16,7 @@ connection = mysql.connector.connect(
 mycursor = connection.cursor()
 
 # Step 1: Create a DataFrame with the data
-df = pd.read_csv('/usercode/flight_reservation/dataset/airlines.csv')
+df = pd.read_csv('../dataset/airlines.csv')
 
 # Step 2: Create a SQLAlchemy engine to connect to the MySQL database
 engine = create_engine("mysql+mysqlconnector://educative:secret@localhost/flight")
@@ -33,7 +33,7 @@ connection.commit()
 ################################################################################################################
 
 # Load the dataframe from the CSV file
-df = pd.read_csv('/usercode/flight_reservation/dataset/airports.csv')
+df = pd.read_csv('../dataset/airports.csv')
 
 mycursor = connection.cursor()
 
@@ -70,7 +70,7 @@ for index, row in df.iterrows():
 ################################################################################################################
 
 # Load the dataframe from the CSV file
-flights_df = pd.read_csv('/usercode/flight_reservation/dataset/flights.csv')
+flights_df = pd.read_csv('../dataset/flights.csv')
 # print(flights_df.columns)
 # Create a cursor object
 mycursor = connection.cursor()
