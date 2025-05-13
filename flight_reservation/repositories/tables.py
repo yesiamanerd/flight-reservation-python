@@ -14,7 +14,8 @@ connection = mysql.connector.connect(
 mycursor = connection.cursor()
 
 
-# Drop tables if they already exist (to start fresh)
+  
+## Drop tables if they already exist (to start fresh) ##
 tables = ['FlightReservation', 'Flight', 'Account_Role', 'Role', 'Account', 'Airport', 'Airline', 'Address']
 for table in tables:
     mycursor.execute(f"DROP TABLE IF EXISTS {table}")
