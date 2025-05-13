@@ -24,17 +24,23 @@ df = pd.read_csv('../dataset/airlines.csv')
 # Step 2: Create a SQLAlchemy engine to connect to the MySQL database
 engine = create_engine("mysql+mysqlconnector://educative:secret@localhost/flight")
 
+
+print("AIRLINES CSV DATA:")
+print(df.head())
+print(f"Number of rows: {len(df)}")
+
 # Step 3: Convert the Pandas DataFrame to a format for MySQL table insertion
 def upsert_airlines(df, table_name, engine):
     meta = MetaData()
     meta.reflect(bind=engine)
     table = meta.tables[table_name]
 
-    with engine.connect() as conn:
+    with engine.begin() as conn:  # <-- engine.begin() instead of connect()
         for _, row in df.iterrows():
             stmt = insert(table).values(**row.to_dict())
             stmt = stmt.on_duplicate_key_update(**row.to_dict())
             conn.execute(stmt)
+
 
 
 upsert_airlines(df, 'airline', engine)
@@ -61,13 +67,13 @@ mycursor = connection.cursor()
 
 # Function to insert into the Address table and get address_id
 def insert_address(city, state, country):
-    mycursor.execute("""
-                     INSERT INTO Address (city, state, country)
-                     VALUES (%s, %s, %s)
-                     """, (city, state, country))
-
-    connection.commit()  # Save the changes
-    return mycursor.lastrowid  # Get the last inserted address_id
+    with connection.cursor() as cur:
+        cur.execute("""
+            INSERT INTO Address (city, state, country)
+            VALUES (%s, %s, %s)
+        """, (city, state, country))
+        connection.commit()
+        return cur.lastrowid
 
 
 # Iterate over each row in the dataframe
@@ -81,13 +87,15 @@ for index, row in df.iterrows():
     address_id = insert_address(city, state, country)
 
     # Insert into Airport using the code, name, and address_id
-    mycursor.execute("""
-        INSERT INTO Airport (code, name, address_id)
-        VALUES (%s, %s, %s)
-        ON DUPLICATE KEY UPDATE name=VALUES(name), address_id=VALUES(address_id)
-    """, (row['code'], row['name'], address_id))
+    with connection.cursor() as cur:
+        cur.execute("""
+            INSERT INTO Airport (code, name, address_id)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE name=VALUES(name), address_id=VALUES(address_id)
+        """, (row['code'], row['name'], address_id))
+        connection.commit()
 
-    connection.commit()  # Save the changes
+
 
 ################################################################################################################
 
@@ -116,48 +124,38 @@ batch_size = 1000  # Adjust the batch size as needed
 
 for i in range(0, len(flight_data), batch_size):
     batch = flight_data[i:i + batch_size]
-    mycursor.executemany(insert_flight_query, batch)
-    connection.commit()  # Commit after each batch to save the changes
+    with connection.cursor() as cur:
+        cur.executemany(insert_flight_query, batch)
+        connection.commit()
 
 print(f"{len(flight_data)} flights inserted into the database.")
 
 ################################################################################################################
-# Create an Admin
-# Create a cursor object
-mycursor = connection.cursor()
 
-# Insert roles
-mycursor.execute("INSERT INTO Role(name) VALUES ('admin');")
-mycursor.execute("INSERT INTO Role(name) VALUES ('user');")
 
-# Insert admin account
-# mycursor.execute("INSERT INTO Account(username, password, status) VALUES ('admin_user', '12345', 'active');")
-mycursor.execute("""
-    INSERT INTO Account(username, password, status)
-    VALUES ('admin_user', '12345', 'active')
-    ON DUPLICATE KEY UPDATE password='12345', status='active';
-""")
+with connection.cursor() as cur:
+    cur.execute("INSERT INTO Role(name) VALUES ('admin') ON DUPLICATE KEY UPDATE name='admin';")
+    cur.execute("INSERT INTO Role(name) VALUES ('user') ON DUPLICATE KEY UPDATE name='user';")
 
-# Fetch the account_id of the newly inserted admin account
-mycursor.execute("SELECT account_id FROM Account WHERE username = 'admin_user';")
-admin_account_id = mycursor.fetchone()[0]
-mycursor.fetchall()  # safe read-all fallback (optional if fetchone used)
+    cur.execute("""
+        INSERT INTO Account(username, password, status)
+        VALUES ('admin_user', '12345', 'active')
+        ON DUPLICATE KEY UPDATE password='12345', status='active';
+    """)
 
-# Fetch the role_id of the admin role
-mycursor.execute("SELECT role_id FROM Role WHERE name = 'admin';")
-admin_role_id = mycursor.fetchone()[0]
-mycursor.fetchall()  # safe read-all fallback (optional if fetchone used)
+    cur.execute("SELECT account_id FROM Account WHERE username = 'admin_user';")
+    admin_account_id = cur.fetchone()[0]
 
-# Insert into Account_Role (assign admin role to admin_user)
-# mycursor.execute("INSERT INTO Account_Role(account_id, role_id) VALUES (%s, %s);", (admin_account_id, admin_role_id))
-mycursor.execute("""
-    INSERT INTO Account_Role(account_id, role_id)
-    VALUES (%s, %s)
-    ON DUPLICATE KEY UPDATE account_id=account_id;
-""", (admin_account_id, admin_role_id))
+    cur.execute("SELECT role_id FROM Role WHERE name = 'admin';")
+    admin_role_id = cur.fetchone()[0]
 
-# Commit the changes
-connection.commit()
+    cur.execute("""
+        INSERT INTO Account_Role(account_id, role_id)
+        VALUES (%s, %s)
+        ON DUPLICATE KEY UPDATE account_id=account_id;
+    """, (admin_account_id, admin_role_id))
+
+    connection.commit()
 
 mycursor.close()
 connection.close()
